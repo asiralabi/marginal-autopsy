@@ -1,0 +1,69 @@
+# Detection rules (validation protocol §4). The logic lives in detect_variances.py;
+# thresholds and wording live here. Bump `version` whenever a rule's threshold or
+# logic changes: every finding records the version that produced it.
+#
+# Not implemented yet, because the schema lacks the fields they need:
+#   F4  revision / UAT cycles     - rounds allowed per contract, rounds recorded
+#   F9  milestone not invoiced    - milestones table with acceptance dates
+#   F10 margin reporting          - the agency's own reported margin per project
+#   F11 repeated estimation error - estimated hours per phase or role
+#   F12 underpriced support       - launch date and support hours in contract
+
+[F1]
+name = "Labor overrun"
+version = 1
+threshold = 0.15  # flag when actual hours > estimated hours x (1 + threshold)
+impact_type = "confirmed_discrepancy"
+confidence = "high"
+alternative_explanation = "The estimate may have been revised mid-project, or hours from another project were logged here."
+next_action = "Check whether a revised estimate was agreed, then review which tasks overran."
+
+[F2]
+name = "Potentially unbilled work"
+version = 1
+impact_type = "potentially_billable"
+confidence = "medium"
+alternative_explanation = "The work may have been in the original scope under another name, agreed as goodwill, or allowed by the contract."
+next_action = "Confirm with the client whether this work was extra, then raise a change order or invoice."
+
+[F3]
+name = "Undocumented scope change"
+version = 1
+impact_type = "unquantified_process_issue"
+confidence = "medium"
+alternative_explanation = "Approval may exist in a channel that was not supplied (email, chat, a call note)."
+next_action = "Find the approval, or start recording written approval for every change request."
+
+[F5]
+name = "Unplanned subcontracting"
+version = 1
+impact_type = "confirmed_discrepancy"
+confidence = "high"
+alternative_explanation = "The subcontractor may have replaced planned internal labor, so the net effect could be close to zero."
+next_action = "Compare against the internal labor saved, and check whether the extra cost could be passed to the client."
+
+[F6]
+name = "Hours with no cost"
+version = 1
+impact_type = "unquantified_process_issue"
+confidence = "high"
+alternative_explanation = "The worker's cost may be booked elsewhere on purpose (for example a fixed-fee contractor)."
+next_action = "Get the cost rate for these hours so the project's true cost is known."
+
+[F7]
+name = "Duplicate transaction"
+version = 1
+window_days = 3  # same type, counterparty, amount and currency within this many days
+impact_type = "confirmed_discrepancy"
+confidence = "medium"
+alternative_explanation = "It may be a legitimate recurring charge or an installment."
+next_action = "Check the vendor statement; if it was paid twice, request a refund or credit."
+
+[F8]
+name = "Invoice / receipt discrepancy"
+version = 1
+tolerance = 0.01  # gaps up to this amount are ignored as rounding
+impact_type = "confirmed_discrepancy"
+confidence = "high"
+alternative_explanation = "Payment may still be due, or a deduction (tax at source, VAT, bank fee) was not supplied."
+next_action = "Find the deduction certificate or follow up with the client for the balance."

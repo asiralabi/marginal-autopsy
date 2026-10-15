@@ -21,10 +21,22 @@ pip install -r requirements.txt
 python -m pytest
 python data/synthetic/generate.py   # rebuild the synthetic CSVs
 python -m src.normalize data/raw/AG01 data/normalized/AG01 --date-format "%d/%m/%Y"
+python -m src.reconcile data/normalized/AG01
+python -m src.detect_variances data/normalized/AG01
 ```
 
 `normalize` writes the cleaned tables plus `normalization_log.csv` (every changed
 value and every problem). Raw files are never modified.
+
+`reconcile` writes `baseline.csv`: planned vs actual cost, profit, margin and
+variance per project, in the project currency. Revenue is the invoiced amount;
+cash received is a separate column. Costs that cannot be known are left out and
+flagged (`data_complete = false`), never guessed.
+
+`detect_variances` writes `findings.csv` in the `audit_findings` schema. Rules F1,
+F2, F3, F5, F6, F7 and F8 are implemented; thresholds and wording live in
+`src/rules.toml`, and each finding records the rule version that produced it.
+Every finding starts as `unreviewed` until an analyst and the agency check it.
 
 ## Rules
 
