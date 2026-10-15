@@ -1,0 +1,1 @@
+transaction_id,project_id,transaction_date,transaction_type,amount,currency,fx_rate_to_usd,fx_rate_source,vendor_or_customer_ref,invoice_id,source_document_id,allocation_method,is_estimated

@@ -1,0 +1,3 @@
+agency_id,region,industry,employee_band,project_type,currency,billing_model,costing_method,data_permission_status
+AG01,BD,software,10-49,web and mobile,USD,fixed-price,loaded hourly rate per role,synthetic
+AG02,UAE,software,10-49,web and mobile,AED,milestone,loaded hourly rate per role,synthetic

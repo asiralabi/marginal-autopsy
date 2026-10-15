@@ -1,0 +1,8 @@
+scope_item_id,project_id,description,source_document_id,included_in_original_scope,change_request_date,change_approval_status,agreed_price_change,billable_status,review_notes
+SI-AG01-03-01,P-AG01-03,User accounts,D-AG01-03-01,true,,,,in fixed fee,
+SI-AG01-03-02,P-AG01-03,Product catalogue,D-AG01-03-01,true,,,,in fixed fee,
+SI-AG01-03-03,P-AG01-03,Admin dashboard,D-AG01-03-01,true,,,,in fixed fee,
+SI-AG01-03-04,P-AG01-03,Payment gateway integration,,false,2026-03-10,none,,unknown,Requested on a call; no written approval or price
+SI-AG02-01-01,P-AG02-01,Booking flow,D-AG02-01-01,true,,,,in fixed fee,
+SI-AG02-01-02,P-AG02-01,Customer app,D-AG02-01-01,true,,,,in fixed fee,
+SI-AG02-01-03,P-AG02-01,Arabic localisation,D-AG02-01-03,false,2026-03-02,approved,6000,billed,Approved by client email; invoiced separately

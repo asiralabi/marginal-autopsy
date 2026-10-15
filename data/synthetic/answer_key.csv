@@ -1,0 +1,13 @@
+case_id,project_id,rule,expected,detail
+K01,P-AG01-01,all,no_flag,"Clean control project: within estimate, paid in full"
+K02,P-AG01-02,F1,flag,"Estimated 400h, actual 520h (+30%)"
+K03,P-AG01-02,F6,flag,30h by 'QA contractor' with no cost rate
+K04,P-AG01-03,F2,flag,"60h on SI-AG01-03-04 (payment gateway): outside original scope, no extra invoice"
+K05,P-AG01-03,F3,flag,"SI-AG01-03-04 has no approval record; same root cause as K04, merge at review"
+K06,P-AG01-03,F8,no_flag,"Received USD 17,975 of 18,000; the USD 25 gap is a documented bank fee"
+K07,P-AG02-01,F7,flag,"AED 3,500 licence from V-TOOLS-01 recorded twice (2026-04-05 and 2026-04-07)"
+K08,P-AG02-01,F2/F3,no_flag,SI-AG02-01-03 is outside original scope but approved and invoiced (INV-1103)
+K09,P-AG02-02,F5,flag,"USD 8,000 subcontractor cost; planned other cost was only AED 2,000 (hosting)"
+K10,P-AG02-03,F8,flag,"INV-1302: invoiced AED 40,000, received AED 32,000, no deduction recorded"
+K11,P-AG02-03,F1,no_flag,"Estimated 500h, actual 550h (+10%), below the 15% threshold"
+K12,P-AG02-04,exclusion,exclude,Project still open

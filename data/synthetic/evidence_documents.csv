@@ -1,0 +1,43 @@
+document_id,project_id,document_type,file_reference,source_date,relevant_page_or_row,extracted_fact,verification_status
+D-AG01-01-01,P-AG01-01,statement of work,D-AG01-01-01.pdf,2026-01-05,p.1,Contract value USD 12000,synthetic
+D-AG01-01-02,P-AG01-01,estimate,D-AG01-01-02.pdf,2026-01-05,p.1,Estimated hours 460,synthetic
+D-AG01-01-03,P-AG01-01,invoice,D-AG01-01-03.pdf,2026-03-27,p.1,invoice USD 12000,synthetic
+D-AG01-01-04,P-AG01-01,bank statement,D-AG01-01-04.pdf,2026-04-15,p.1,payment USD 12000,synthetic
+D-AG01-01-05,P-AG01-01,vendor invoice,D-AG01-01-05.pdf,2026-02-01,p.1,expense_other USD 450,synthetic
+D-AG01-02-01,P-AG01-02,statement of work,D-AG01-02-01.pdf,2026-01-12,p.1,Contract value USD 15000,synthetic
+D-AG01-02-02,P-AG01-02,estimate,D-AG01-02-02.pdf,2026-01-12,p.1,Estimated hours 400,synthetic
+D-AG01-02-03,P-AG01-02,invoice,D-AG01-02-03.pdf,2026-04-10,p.1,invoice USD 15000,synthetic
+D-AG01-02-04,P-AG01-02,bank statement,D-AG01-02-04.pdf,2026-04-30,p.1,payment USD 15000,synthetic
+D-AG01-03-01,P-AG01-03,statement of work,D-AG01-03-01.pdf,2026-02-02,p.1,Contract value USD 18000,synthetic
+D-AG01-03-02,P-AG01-03,estimate,D-AG01-03-02.pdf,2026-02-02,p.1,Estimated hours 520,synthetic
+D-AG01-03-03,P-AG01-03,invoice,D-AG01-03-03.pdf,2026-05-01,p.1,invoice USD 18000,synthetic
+D-AG01-03-04,P-AG01-03,bank statement,D-AG01-03-04.pdf,2026-05-20,p.1,payment USD 17975,synthetic
+D-AG01-03-05,P-AG01-03,bank charge advice,D-AG01-03-05.pdf,2026-05-20,p.1,bank_fee USD 25,synthetic
+D-AG02-01-01,P-AG02-01,statement of work,D-AG02-01-01.pdf,2026-01-19,p.1,Contract value AED 60000,synthetic
+D-AG02-01-02,P-AG02-01,estimate,D-AG02-01-02.pdf,2026-01-19,p.1,Estimated hours 420,synthetic
+D-AG02-01-03,P-AG02-01,client approval email,D-AG02-01-03.pdf,2026-03-02,p.1,Approved Arabic localisation for AED 6000,synthetic
+D-AG02-01-04,P-AG02-01,invoice,D-AG02-01-04.pdf,2026-02-28,p.1,invoice AED 30000,synthetic
+D-AG02-01-05,P-AG02-01,bank statement,D-AG02-01-05.pdf,2026-03-20,p.1,payment AED 30000,synthetic
+D-AG02-01-06,P-AG02-01,invoice,D-AG02-01-06.pdf,2026-04-17,p.1,invoice AED 30000,synthetic
+D-AG02-01-07,P-AG02-01,bank statement,D-AG02-01-07.pdf,2026-05-06,p.1,payment AED 30000,synthetic
+D-AG02-01-08,P-AG02-01,invoice,D-AG02-01-08.pdf,2026-04-17,p.1,invoice AED 6000,synthetic
+D-AG02-01-09,P-AG02-01,bank statement,D-AG02-01-09.pdf,2026-05-06,p.1,payment AED 6000,synthetic
+D-AG02-01-10,P-AG02-01,vendor invoice,D-AG02-01-10.pdf,2026-04-05,p.1,expense_other AED 3500,synthetic
+D-AG02-01-11,P-AG02-01,vendor invoice,D-AG02-01-11.pdf,2026-04-07,p.1,expense_other AED 3500,synthetic
+D-AG02-02-01,P-AG02-02,statement of work,D-AG02-02-01.pdf,2026-02-09,p.1,Contract value AED 50000,synthetic
+D-AG02-02-02,P-AG02-02,estimate,D-AG02-02-02.pdf,2026-02-09,p.1,Estimated hours 380,synthetic
+D-AG02-02-03,P-AG02-02,invoice,D-AG02-02-03.pdf,2026-03-31,p.1,invoice AED 25000,synthetic
+D-AG02-02-04,P-AG02-02,bank statement,D-AG02-02-04.pdf,2026-04-20,p.1,payment AED 25000,synthetic
+D-AG02-02-05,P-AG02-02,invoice,D-AG02-02-05.pdf,2026-05-08,p.1,invoice AED 25000,synthetic
+D-AG02-02-06,P-AG02-02,bank statement,D-AG02-02-06.pdf,2026-05-28,p.1,payment AED 25000,synthetic
+D-AG02-02-07,P-AG02-02,vendor invoice,D-AG02-02-07.pdf,2026-04-15,p.1,expense_subcontractor USD 8000,synthetic
+D-AG02-02-08,P-AG02-02,vendor invoice,D-AG02-02-08.pdf,2026-03-01,p.1,expense_other AED 1800,synthetic
+D-AG02-03-01,P-AG02-03,statement of work,D-AG02-03-01.pdf,2026-02-16,p.1,Contract value AED 80000,synthetic
+D-AG02-03-02,P-AG02-03,estimate,D-AG02-03-02.pdf,2026-02-16,p.1,Estimated hours 500,synthetic
+D-AG02-03-03,P-AG02-03,invoice,D-AG02-03-03.pdf,2026-04-15,p.1,invoice AED 40000,synthetic
+D-AG02-03-04,P-AG02-03,bank statement,D-AG02-03-04.pdf,2026-05-05,p.1,payment AED 40000,synthetic
+D-AG02-03-05,P-AG02-03,invoice,D-AG02-03-05.pdf,2026-06-05,p.1,invoice AED 40000,synthetic
+D-AG02-03-06,P-AG02-03,bank statement,D-AG02-03-06.pdf,2026-06-25,p.1,payment AED 32000,synthetic
+D-AG02-04-01,P-AG02-04,statement of work,D-AG02-04-01.pdf,2026-05-04,p.1,Contract value AED 40000,synthetic
+D-AG02-04-02,P-AG02-04,estimate,D-AG02-04-02.pdf,2026-05-04,p.1,Estimated hours 330,synthetic
+D-AG02-04-03,P-AG02-04,invoice,D-AG02-04-03.pdf,2026-06-01,p.1,invoice AED 20000,synthetic

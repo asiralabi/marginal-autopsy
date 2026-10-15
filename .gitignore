@@ -1,0 +1,8 @@
+# Real agency data never goes into this repository (it is public).
+data/raw/
+data/normalized/
+reports/
+
+__pycache__/
+.pytest_cache/
+.venv/

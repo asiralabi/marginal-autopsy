@@ -1,0 +1,8 @@
+project_id,agency_id,start_date,end_date,project_type,contract_value,estimated_labor_hours,estimated_labor_cost,estimated_other_cost,planned_margin,actual_revenue,actual_cost,currency,project_status,exclusion_reason
+P-AG01-01,AG01,2026-01-05,2026-03-27,web and mobile,12000,460,5280,500,51.8,12000.0,5560.0,USD,completed,
+P-AG01-02,AG01,2026-01-12,2026-04-10,web and mobile,15000,400,4620,0,69.2,15000.0,5790.0,USD,completed,
+P-AG01-03,AG01,2026-02-02,2026-05-01,web and mobile,18000,520,6000,0,66.7,18000.0,6560.0,USD,completed,
+P-AG02-01,AG02,2026-01-19,2026-04-17,web and mobile,60000,420,36500,8000,25.8,66000.0,46200.0,AED,completed,
+P-AG02-02,AG02,2026-02-09,2026-05-08,web and mobile,50000,380,32850,2000,30.3,50000.0,63205.01,AED,completed,
+P-AG02-03,AG02,2026-02-16,2026-06-05,web and mobile,80000,500,43200,0,46.0,80000.0,47475.0,AED,completed,
+P-AG02-04,AG02,2026-05-04,,web and mobile,40000,330,28600,0,28.5,20000.0,14150.0,AED,open,project still open
