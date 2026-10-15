@@ -19,7 +19,7 @@ SCHEMAS = Path(__file__).resolve().parents[1] / "schemas"
 TABLES = ["agencies", "projects", "scope_items", "time_entries", "financial_transactions", "evidence_documents"]
 DATES = {"start_date", "end_date", "date", "transaction_date", "source_date", "change_request_date"}
 NUMBERS = {"contract_value", "estimated_labor_hours", "estimated_labor_cost", "estimated_other_cost",
-           "planned_margin", "actual_revenue", "actual_cost", "hours", "hourly_cost_rate", "cost_amount",
+           "estimated_subcontractor_cost", "planned_margin", "actual_revenue", "actual_cost", "hours", "hourly_cost_rate", "cost_amount",
            "amount", "fx_rate_to_usd", "agreed_price_change"}
 BOOLEANS = {"included_in_original_scope", "is_estimated"}
 TRUE, FALSE = {"true", "yes", "y", "1"}, {"false", "no", "n", "0"}

@@ -22,8 +22,9 @@ D-AG02-01-06,P-AG02-01,invoice,D-AG02-01-06.pdf,2026-04-17,p.1,invoice AED 30000
 D-AG02-01-07,P-AG02-01,bank statement,D-AG02-01-07.pdf,2026-05-06,p.1,payment AED 30000,synthetic
 D-AG02-01-08,P-AG02-01,invoice,D-AG02-01-08.pdf,2026-04-17,p.1,invoice AED 6000,synthetic
 D-AG02-01-09,P-AG02-01,bank statement,D-AG02-01-09.pdf,2026-05-06,p.1,payment AED 6000,synthetic
-D-AG02-01-10,P-AG02-01,vendor invoice,D-AG02-01-10.pdf,2026-04-05,p.1,expense_other AED 3500,synthetic
-D-AG02-01-11,P-AG02-01,vendor invoice,D-AG02-01-11.pdf,2026-04-07,p.1,expense_other AED 3500,synthetic
+D-AG02-01-10,P-AG02-01,vendor invoice,D-AG02-01-10.pdf,2026-03-15,p.1,expense_subcontractor USD 2500,synthetic
+D-AG02-01-11,P-AG02-01,vendor invoice,D-AG02-01-11.pdf,2026-04-05,p.1,expense_other AED 3500,synthetic
+D-AG02-01-12,P-AG02-01,vendor invoice,D-AG02-01-12.pdf,2026-04-07,p.1,expense_other AED 3500,synthetic
 D-AG02-02-01,P-AG02-02,statement of work,D-AG02-02-01.pdf,2026-02-09,p.1,Contract value AED 50000,synthetic
 D-AG02-02-02,P-AG02-02,estimate,D-AG02-02-02.pdf,2026-02-09,p.1,Estimated hours 380,synthetic
 D-AG02-02-03,P-AG02-02,invoice,D-AG02-02-03.pdf,2026-03-31,p.1,invoice AED 25000,synthetic

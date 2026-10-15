@@ -43,8 +43,10 @@ PROJECTS = [
     dict(id="P-AG01-03", agency="AG01", start=date(2026, 2, 2), end=date(2026, 5, 1), contract=18000, other_est=0,
          est={"Developer": 360, "Designer": 60, "QA": 60, "PM": 40},
          work=[("Developer", 350), ("Developer", 60, "SI-AG01-03-04"), ("Designer", 60), ("QA", 55), ("PM", 40)]),
-    # F7 duplicate licence expense; trap: approved and billed change request (40h)
+    # F7 duplicate licence expense; traps: approved and billed change request (40h),
+    # subcontractor within plan (USD 2,500 ~ AED 9,181 against AED 10,000 planned)
     dict(id="P-AG02-01", agency="AG02", start=date(2026, 1, 19), end=date(2026, 4, 17), contract=60000, other_est=8000,
+         sub_est=10000,
          est={"Developer": 280, "Designer": 60, "QA": 40, "PM": 40},
          work=[("Developer", 270), ("Developer", 40, "SI-AG02-01-03"), ("Designer", 60), ("QA", 40), ("PM", 40)]),
     # F5 subcontractor cost (USD 8,000) with none planned
@@ -92,6 +94,7 @@ TRANSACTIONS = {
                   ("payment", "2026-05-06", 30000, "AED", "C-AG02-A", "INV-1102", "bank statement"),
                   ("invoice", "2026-04-17", 6000, "AED", "C-AG02-A", "INV-1103", "invoice"),
                   ("payment", "2026-05-06", 6000, "AED", "C-AG02-A", "INV-1103", "bank statement"),
+                  ("expense_subcontractor", "2026-03-15", 2500, "USD", "V-DHAKA-02", "", "vendor invoice"),
                   ("expense_other", "2026-04-05", 3500, "AED", "V-TOOLS-01", "", "vendor invoice"),
                   ("expense_other", "2026-04-07", 3500, "AED", "V-TOOLS-01", "", "vendor invoice")],
     "P-AG02-02": [("invoice", "2026-03-31", 25000, "AED", "C-AG02-B", "INV-1201", "invoice"),
@@ -117,10 +120,11 @@ ANSWER_KEY = [
     ["K06", "P-AG01-03", "F8", "no_flag", "Received USD 17,975 of 18,000; the USD 25 gap is a documented bank fee"],
     ["K07", "P-AG02-01", "F7", "flag", "AED 3,500 licence from V-TOOLS-01 recorded twice (2026-04-05 and 2026-04-07)"],
     ["K08", "P-AG02-01", "F2/F3", "no_flag", "SI-AG02-01-03 is outside original scope but approved and invoiced (INV-1103)"],
-    ["K09", "P-AG02-02", "F5", "flag", "USD 8,000 subcontractor cost; planned other cost was only AED 2,000 (hosting)"],
+    ["K09", "P-AG02-02", "F5", "flag", "USD 8,000 subcontractor cost; no subcontractor cost planned (0)"],
     ["K10", "P-AG02-03", "F8", "flag", "INV-1302: invoiced AED 40,000, received AED 32,000, no deduction recorded"],
     ["K11", "P-AG02-03", "F1", "no_flag", "Estimated 500h, actual 550h (+10%), below the 15% threshold"],
     ["K12", "P-AG02-04", "exclusion", "exclude", "Project still open"],
+    ["K13", "P-AG02-01", "F5", "no_flag", "Subcontractor USD 2,500 (~AED 9,181) within the AED 10,000 planned"],
 ]
 
 
@@ -177,11 +181,12 @@ def build():
                 other_cost += in_project_cur
 
         est_labour = sum(h * rates[r] for r, h in p["est"].items())
-        planned_margin = round((p["contract"] - est_labour - p["other_est"]) / p["contract"] * 100, 1)
+        sub_est = p.get("sub_est", 0)
+        planned_margin = round((p["contract"] - est_labour - p["other_est"] - sub_est) / p["contract"] * 100, 1)
         status = p.get("status", "completed")
         tables["projects"].append([
             pid, ag, p["start"].isoformat(), p["end"].isoformat() if p["end"] else "", "web and mobile",
-            p["contract"], sum(p["est"].values()), est_labour, p["other_est"], planned_margin,
+            p["contract"], sum(p["est"].values()), est_labour, p["other_est"], sub_est, planned_margin,
             round(revenue, 2), round(labour_cost + other_cost, 2), cur, status,
             "project still open" if status == "open" else ""])
     return tables

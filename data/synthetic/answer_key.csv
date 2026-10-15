@@ -7,7 +7,8 @@ K05,P-AG01-03,F3,flag,"SI-AG01-03-04 has no approval record; same root cause as 
 K06,P-AG01-03,F8,no_flag,"Received USD 17,975 of 18,000; the USD 25 gap is a documented bank fee"
 K07,P-AG02-01,F7,flag,"AED 3,500 licence from V-TOOLS-01 recorded twice (2026-04-05 and 2026-04-07)"
 K08,P-AG02-01,F2/F3,no_flag,SI-AG02-01-03 is outside original scope but approved and invoiced (INV-1103)
-K09,P-AG02-02,F5,flag,"USD 8,000 subcontractor cost; planned other cost was only AED 2,000 (hosting)"
+K09,P-AG02-02,F5,flag,"USD 8,000 subcontractor cost; no subcontractor cost planned (0)"
 K10,P-AG02-03,F8,flag,"INV-1302: invoiced AED 40,000, received AED 32,000, no deduction recorded"
 K11,P-AG02-03,F1,no_flag,"Estimated 500h, actual 550h (+10%), below the 15% threshold"
 K12,P-AG02-04,exclusion,exclude,Project still open
+K13,P-AG02-01,F5,no_flag,"Subcontractor USD 2,500 (~AED 9,181) within the AED 10,000 planned"

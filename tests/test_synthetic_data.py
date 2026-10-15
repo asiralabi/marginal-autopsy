@@ -94,9 +94,15 @@ def test_planted_payment_gaps():
     assert short == {"INV-1302": 8000}                              # K10 flagged, K06 reconciles
 
 
-def test_planted_unplanned_subcontractor():
-    subs = [t for t in read("financial_transactions") if t["transaction_type"] == "expense_subcontractor"]
-    assert [(t["project_id"], t["amount"], t["currency"]) for t in subs] == [("P-AG02-02", "8000", "USD")]  # K09
+def test_planted_subcontractor_costs():
+    planned = {p["project_id"]: float(p["estimated_subcontractor_cost"]) for p in read("projects")}
+    actual = defaultdict(float)  # in AED, the currency of every project that subcontracts
+    for t in read("financial_transactions"):
+        if t["transaction_type"] == "expense_subcontractor":
+            actual[t["project_id"]] += float(t["amount"]) * (3.6725 if t["currency"] == "USD" else 1)
+    assert planned["P-AG02-02"] == 0 and actual["P-AG02-02"] == 29380        # K09: none planned
+    assert planned["P-AG02-01"] == 10000 and 9000 < actual["P-AG02-01"] < 10000  # K13: within plan
+    assert set(actual) == {"P-AG02-01", "P-AG02-02"}
 
 
 def test_only_open_project_is_excluded():
