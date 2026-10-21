@@ -23,6 +23,7 @@ python data/synthetic/generate.py   # rebuild the synthetic CSVs
 python -m src.normalize data/raw/AG01 data/normalized/AG01 --date-format "%d/%m/%Y"
 python -m src.reconcile data/normalized/AG01
 python -m src.detect_variances data/normalized/AG01
+python -m src.generate_report data/normalized/AG01 reports/AG01
 ```
 
 `normalize` writes the cleaned tables plus `normalization_log.csv` (every changed
@@ -37,6 +38,11 @@ flagged (`data_complete = false`), never guessed.
 F2, F3, F5, F6, F7 and F8 are implemented; thresholds and wording live in
 `src/rules.toml`, and each finding records the rule version that produced it.
 Every finding starts as `unreviewed` until an analyst and the agency check it.
+
+`generate_report` runs the rules (which run reconciliation) and writes one draft
+HTML report per agency: summary by impact type, planned vs actual profit, each
+finding in the protocol's 10-part format with a verdict box, recurring
+patterns, data gaps and method. Open it in a browser; print to PDF to share.
 
 ## Rules
 

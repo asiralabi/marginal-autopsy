@@ -97,7 +97,9 @@ def baseline(p, entries, txs):
                 notes.append(f"{t['transaction_id']}: cannot convert {t['currency']} to {cur} ({rate_source})")
                 continue
             amount = amount * Decimal(t["fx_rate_to_usd"]) / rate
-            fx_used.add(f"{t['currency']}->{cur} via USD: {t['fx_rate_to_usd']} / {rate} ({rate_source})")
+            per = (Decimal(t["fx_rate_to_usd"]) / rate).quantize(Decimal("0.000001"))
+            fx_used.add(f"{t['currency']} to {cur} at {per} {cur} per {t['currency']} "
+                        f"({t['fx_rate_to_usd']} / {rate} USD rates; {rate_source})")
         totals[COST_TYPES.get(kind, kind)] += amount
 
     revenue = totals["invoice"]
