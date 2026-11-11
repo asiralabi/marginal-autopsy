@@ -3,7 +3,8 @@
 // copies it into Pyodide's in-memory file system and calls it.
 
 const ENGINE_FILES = [
-  "src/normalize.py", "src/reconcile.py", "src/detect_variances.py", "src/generate_report.py", "src/rules.toml",
+  "src/normalize.py", "src/reconcile.py", "src/detect_variances.py", "src/generate_report.py", "src/review.py",
+  "src/rules.toml",
   ...["agencies", "projects", "scope_items", "time_entries", "financial_transactions", "evidence_documents",
       "audit_findings"].map(t => `schemas/${t}.csv`),
 ];
@@ -83,6 +84,46 @@ export async function auditFolder(pyodide, dir, generatedOn) {
   try {
     const result = runAudit(pyodide, mount, `${mount}/normalized`, `${mount}/reports`, generatedOn);
     await nativefs.syncfs();  // write normalized/ and reports/ back to disk
+    return result;
+  } finally {
+    pyodide.FS.unmount(mount);
+  }
+}
+
+// The review of an audited folder: its findings in report order with their verdicts,
+// confirmed totals by impact type, and how many saved verdicts match no current
+// finding. With updates, first merges them into the folder's verdicts.csv.
+export async function reviewFolder(pyodide, dir, updates = null, reviewer = "", today = "") {
+  const mount = "/agency";
+  const nativefs = await pyodide.mountNativeFS(mount, dir);
+  try {
+    const review = pyodide.runPython(`
+from pathlib import Path
+from src.detect_variances import load_rules
+from src.generate_report import IMPACT_TYPES, amount, order, usd_rates
+from src.reconcile import read
+from src.review import confirmed_totals, load, record, reviewed
+
+def review(folder, updates, reviewer, today):
+    normalized = Path(folder) / "normalized"
+    if not (normalized / "findings.csv").exists():
+        raise ValueError("Run the audit on this folder before reviewing it.")
+    if updates:
+        record(folder, updates, reviewer, today)
+    verdicts, rules = load(folder), load_rules()
+    label = lambda kind: IMPACT_TYPES[kind].split(":")[0]
+    findings = reviewed(order(read(normalized, "findings"), usd_rates(normalized)), verdicts)
+    for f in findings:
+        f["rule_name"], f["impact_label"] = rules[f["finding_type"]]["name"], label(f["impact_type"])
+        f["impact_text"] = amount(f["estimated_impact"], f["currency"], "no amount")
+    totals = {label(k): {c: f"{v:,.2f}" for c, v in t.items()} for k, t in confirmed_totals(findings).items()}
+    return dict(findings=findings, totals=totals, orphans=len(set(verdicts) - {f["finding_id"] for f in findings}))
+review`);
+    const proxy = review(mount, updates && pyodide.toPy(updates), reviewer, today);
+    const result = proxy.toJs({ dict_converter: Object.fromEntries });
+    proxy.destroy();
+    review.destroy();
+    if (updates) await nativefs.syncfs();  // write verdicts.csv back to disk
     return result;
   } finally {
     pyodide.FS.unmount(mount);

@@ -24,6 +24,15 @@
   #editor legend .hint { font-weight: normal; }
   .file-row { display: flex; flex-wrap: wrap; gap: 16px; }
   .actions { position: sticky; bottom: 0; padding: 10px 0; background: #f6f7f9; }
+  #review { flex: 1; overflow: auto; padding: 0 16px; }
+  #review-top { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; padding: 10px 0; }
+  .card { margin: 0 0 12px; padding: 10px 12px; background: #fff; border: 1px solid #d8dde3; border-radius: 6px; }
+  .card.dropped { opacity: .6; }
+  .card h3 { margin: 0; font-size: 15px; }
+  .card p { margin: 4px 0; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; font-size: 13px; }
+  .controls input { width: 14em; }
+  .controls input.amount { width: 8em; }
 </style>
 </head>
 <body>
@@ -31,6 +40,7 @@
   <h1>Margin Autopsy · analyst tool</h1>
   <button id="folder" disabled>Open agency folder…</button>
   <button id="matching" hidden>Column matching…</button>
+  <button id="review-btn" hidden>Review findings…</button>
   <button id="sample" disabled>Run on sample data</button>
   <select id="reports" hidden aria-label="Report"></select>
   <span id="status">Loading engine…</span>
@@ -55,15 +65,27 @@
   <div id="tables"></div>
   <div class="actions"><button id="save">Save and run</button> <button id="cancel">Cancel</button></div>
 </section>
+<section id="review" hidden>
+  <div id="review-top">
+    <label>Agency reviewer <input id="reviewer" placeholder="role or ID, e.g. AG01-CEO"></label>
+    <span id="review-counts" class="hint"></span>
+  </div>
+  <p id="review-totals"></p>
+  <div id="review-list"></div>
+  <div class="actions"><button id="review-save">Save review</button> <button id="review-back">Back to report</button></div>
+</section>
 <script type="module">
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs";
-import { startEngine, runAudit, inspectFolder, auditFolder } from "./engine.js";
+import { startEngine, runAudit, inspectFolder, auditFolder, reviewFolder } from "./engine.js";
 
 const $ = id => document.getElementById(id);
 const status = (text, error = false) => { $("status").textContent = text; $("status").className = error ? "error" : ""; };
 const today = () => new Date().toLocaleDateString("en-CA");  // YYYY-MM-DD, local time
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-const view = which => { $("report").hidden = which !== "report"; $("editor").hidden = which !== "editor"; };
+const view = which => { for (const id of ["report", "editor", "review"]) $(id).hidden = which !== id; };
+const VERDICTS = { unreviewed: "Not reviewed yet", confirmed: "Confirmed", partially_confirmed: "Partly confirmed",
+                   rejected: "Rejected", needs_more_evidence: "Needs more evidence" };  // protocol §5
+const YES_NO = [["", "—"], ["yes", "Yes"], ["no", "No"]];
 const DATE_FORMATS = { "": "2026-01-31 (YYYY-MM-DD)", "%d/%m/%Y": "31/01/2026", "%m/%d/%Y": "01/31/2026",
                        "%d-%m-%Y": "31-01-2026", "%d.%m.%Y": "31.01.2026", "%Y/%m/%d": "2026/01/31",
                        "%d-%b-%Y": "31-Jan-2026", "%d %b %Y": "31 Jan 2026" };
@@ -179,6 +201,51 @@ function tableForm(table, cols, saved, files, dates) {
   return { box, build };
 }
 
+// One finding's review card. Returns { box, values }, where values() gives its verdicts.csv row.
+function reviewCard(n, f) {
+  const box = document.createElement("article");
+  box.className = "card";
+  const text = (tag, content, className = "") => Object.assign(box.appendChild(document.createElement(tag)), { textContent: content, className });
+  text("h3", `${n}. ${f.rule_name} · ${f.project_id}`);
+  text("p", `${f.impact_label} · ${f.impact_text} · ${f.confidence} confidence · ${f.finding_id}`, "hint");
+  text("p", f.description);
+  const input = (value, placeholder, className = "") => Object.assign(document.createElement("input"), { value, placeholder, className });
+  const decision = select([["", "—"], ["keep", "Keep"], ["drop", "Drop"]], f.analyst_decision);
+  const note = input(f.analyst_note, "why");
+  const verdict = select(Object.entries(VERDICTS), f.customer_verdict);
+  const known = select(YES_NO, f.already_known);
+  const step = select(YES_NO, f.actionability);
+  const agreed = input(f.agreed_amount, f.currency, "amount");
+  const comment = input(f.agency_comment, "their answer and reason");
+  const controls = box.appendChild(document.createElement("div"));
+  controls.className = "controls";
+  controls.append(labelled("You:", decision), labelled("Note", note), labelled("Agency verdict", verdict),
+                  labelled("Already known?", known), labelled("Next step agreed?", step),
+                  labelled("Agreed amount", agreed), labelled("Comment", comment));
+  if (f.reviewed_on) text("p", `Verdict recorded by ${f.reviewer_id || "unknown"} on ${f.reviewed_on}.`, "hint");
+  const mark = () => box.classList.toggle("dropped", decision.value === "drop");
+  decision.addEventListener("change", mark);
+  mark();
+  const values = () => ({ finding_id: f.finding_id, analyst_decision: decision.value, analyst_note: note.value,
+    customer_verdict: verdict.value, already_known: known.value, actionability: step.value,
+    agreed_amount: agreed.value, agency_comment: comment.value });
+  return { box, values };
+}
+
+function showReview(data) {
+  const cards = data.findings.map((f, i) => reviewCard(i + 1, f));
+  $("review-list").replaceChildren(...cards.map(c => c.box));
+  const count = (field, value) => data.findings.filter(f => f[field] === value).length;
+  $("review-counts").textContent = `${plural(data.findings.length, "finding")} · you: ${count("analyst_decision", "keep")} kept, ` +
+    `${count("analyst_decision", "drop")} dropped, ${count("analyst_decision", "")} not reviewed · agency: ` +
+    Object.entries(VERDICTS).map(([v, label]) => `${count("customer_verdict", v)} ${label.toLowerCase()}`).join(", ");
+  const totals = Object.entries(data.totals).map(([kind, t]) => `${kind} ${Object.entries(t).map(([c, v]) => `${c} ${v}`).join("; ")}`);
+  $("review-totals").textContent = `Confirmed so far: ${totals.join(" · ") || "nothing yet"}.` +
+    (data.orphans ? ` Kept in verdicts.csv but not shown: ${plural(data.orphans, "verdict")} for findings this run no longer produces.` : "");
+  view("review");
+  return cards;
+}
+
 try {
   const pyodide = await loadPyodide();
   const tables = await startEngine(pyodide, fetchBytes);
@@ -191,6 +258,7 @@ try {
     status(`Auditing ${folder.dir.name}…`);
     show(await auditFolder(pyodide, folder.dir, today()),
          `saved to ${folder.dir.name}/normalized and ${folder.dir.name}/reports`);
+    $("review-btn").hidden = false;
     status(`Audited ${folder.dir.name}.`);
   }
 
@@ -216,6 +284,7 @@ try {
         throw new Error(`"${dir.name}" has no CSV files. Pick the folder that holds the agency's CSV files.`);
       folder = { dir, info };
       $("matching").hidden = false;
+      $("review-btn").hidden = true;  // until this folder has been audited
       if (info.mapping || tables.every(t => `${t}.csv` in info.files)) await runFolder();
       else editMatching();
     } catch (e) {
@@ -246,6 +315,26 @@ try {
   };
 
   $("cancel").onclick = () => { view("report"); status(folder ? `${folder.dir.name} not changed.` : ""); };
+
+  let cards = [];
+  $("review-btn").onclick = async () => {
+    try {
+      cards = showReview(await reviewFolder(pyodide, folder.dir));
+      status(`Reviewing ${folder.dir.name}.`);
+    } catch (e) {
+      fail(e);
+    }
+  };
+  $("review-save").onclick = async () => {
+    try {
+      cards = showReview(await reviewFolder(pyodide, folder.dir, cards.map(c => c.values()), $("reviewer").value.trim(), today()));
+      status(`Saved to ${folder.dir.name}/verdicts.csv.`);
+    } catch (e) {
+      fail(e);
+    }
+  };
+  $("review-list").oninput = () => status("Unsaved changes.");
+  $("review-back").onclick = () => view("report");
 
   $("sample").onclick = async () => {
     try {
