@@ -26,11 +26,13 @@ python -m src.detect_variances data/normalized/AG01
 python -m src.generate_report data/normalized/AG01 reports/AG01
 ```
 
-Analyst tool (browser): `python -m http.server 8765 --bind 127.0.0.1`, then open
-http://127.0.0.1:8765/app/. It runs the same `src/` code unchanged inside Pyodide,
+Analyst tool (browser): `python app/serve.py`, then open http://127.0.0.1:8765/app/. It runs the same `src/` code unchanged inside Pyodide,
 so files are processed in the browser, not by the server. **Open agency folder…**
 (Chrome or Edge) takes the folder holding the agency's CSVs and writes
 `normalized/` and `reports/` inside it. Keep agency folders outside this repository.
+When the files are not in the schema's form, **Column matching…** saves a
+`mapping.json` in the folder (file, columns, fixed values and date format per
+table; format in `src/normalize.py`), which `normalize` then applies on every run.
 
 `normalize` writes the cleaned tables plus `normalization_log.csv` (every changed
 value and every problem). Raw files are never modified.

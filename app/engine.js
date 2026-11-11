@@ -46,17 +46,41 @@ run`);
   return result;
 }
 
-// Audits a folder on disk holding the agency's CSVs (a FileSystemDirectoryHandle with
-// read-write permission). Results are written to normalized/ and reports/ inside it;
-// the agency's own files are never modified.
-export async function auditFolder(pyodide, dir, generatedOn) {
+// What column matching needs from a folder on disk: the header row of each CSV,
+// the saved mapping.json (or null), each table's schema columns, and the date columns.
+export async function inspectFolder(pyodide, dir) {
   if (["normalized", "reports"].includes(dir.name))
     throw new Error(`"${dir.name}" holds results from an earlier run. Pick the agency folder that contains it.`);
   const mount = "/agency";
+  await pyodide.mountNativeFS(mount, dir);
+  try {
+    const inspect = pyodide.runPython(`
+from pathlib import Path
+from src.normalize import DATES, MAPPING, TABLES, headers, schema_columns
+
+def inspect(folder):
+    saved = Path(folder) / MAPPING
+    return dict(files=headers(folder), mapping=saved.read_text(encoding="utf-8") if saved.exists() else None,
+                schemas={t: schema_columns(t) for t in TABLES}, dates=sorted(DATES))
+inspect`);
+    const proxy = inspect(mount);
+    const info = proxy.toJs({ dict_converter: Object.fromEntries });
+    proxy.destroy();
+    inspect.destroy();
+    info.mapping = info.mapping == null ? null : JSON.parse(info.mapping);  // Python None arrives as undefined
+    return info;
+  } finally {
+    pyodide.FS.unmount(mount);
+  }
+}
+
+// Audits a folder on disk holding the agency's CSVs (a FileSystemDirectoryHandle with
+// read-write permission), using its mapping.json if there is one. Results are written
+// to normalized/ and reports/ inside it; the agency's own files are never modified.
+export async function auditFolder(pyodide, dir, generatedOn) {
+  const mount = "/agency";
   const nativefs = await pyodide.mountNativeFS(mount, dir);
   try {
-    if (!pyodide.FS.analyzePath(`${mount}/projects.csv`).exists)
-      throw new Error(`"${dir.name}" has no projects.csv. Pick the folder that holds the agency's CSV files.`);
     const result = runAudit(pyodide, mount, `${mount}/normalized`, `${mount}/reports`, generatedOn);
     await nativefs.syncfs();  // write normalized/ and reports/ back to disk
     return result;

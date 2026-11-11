@@ -10,20 +10,27 @@
   header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px;
            background: #fff; border-bottom: 1px solid #d8dde3; }
   h1 { margin: 0 8px 0 0; font-size: 16px; }
-  #status { color: #57606a; }
+  #status, .hint { color: #57606a; }
   #status.error { color: #b42318; }
   #summary { padding: 8px 16px; background: #fff; border-bottom: 1px solid #d8dde3; }
-  #summary table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
-  #summary th, #summary td { padding: 2px 10px 2px 0; text-align: left; vertical-align: top; }
-  .error-row { color: #b42318; }
+  table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  th, td { padding: 2px 10px 2px 0; text-align: left; vertical-align: top; }
+  .error-row, .unmatched td:first-child { color: #b42318; }
   #problems-wrap { max-height: 35vh; overflow: auto; }
   iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+  #editor { flex: 1; overflow: auto; padding: 0 16px; }
+  #editor fieldset { margin: 0 0 12px; padding: 8px 12px; background: #fff; border: 1px solid #d8dde3; border-radius: 6px; }
+  #editor legend { font-weight: 600; }
+  #editor legend .hint { font-weight: normal; }
+  .file-row { display: flex; flex-wrap: wrap; gap: 16px; }
+  .actions { position: sticky; bottom: 0; padding: 10px 0; background: #f6f7f9; }
 </style>
 </head>
 <body>
 <header>
   <h1>Margin Autopsy · analyst tool</h1>
   <button id="folder" disabled>Open agency folder…</button>
+  <button id="matching" hidden>Column matching…</button>
   <button id="sample" disabled>Run on sample data</button>
   <select id="reports" hidden aria-label="Report"></select>
   <span id="status">Loading engine…</span>
@@ -41,17 +48,29 @@
   </details>
 </div>
 <iframe id="report" title="Audit report"></iframe>
+<section id="editor" hidden>
+  <p class="hint">For each of our tables, pick the agency's file, then the column that holds each of our fields.
+    Leave a field unmatched if their data does not have it. Type a fixed value when it is the same on every row,
+    such as the agency ID or the currency.</p>
+  <div id="tables"></div>
+  <div class="actions"><button id="save">Save and run</button> <button id="cancel">Cancel</button></div>
+</section>
 <script type="module">
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs";
-import { startEngine, runAudit, auditFolder } from "./engine.js";
+import { startEngine, runAudit, inspectFolder, auditFolder } from "./engine.js";
 
 const $ = id => document.getElementById(id);
 const status = (text, error = false) => { $("status").textContent = text; $("status").className = error ? "error" : ""; };
 const today = () => new Date().toLocaleDateString("en-CA");  // YYYY-MM-DD, local time
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const view = which => { $("report").hidden = which !== "report"; $("editor").hidden = which !== "editor"; };
+const DATE_FORMATS = { "": "2026-01-31 (YYYY-MM-DD)", "%d/%m/%Y": "31/01/2026", "%m/%d/%Y": "01/31/2026",
+                       "%d-%m-%Y": "31-01-2026", "%d.%m.%Y": "31.01.2026", "%Y/%m/%d": "2026/01/31",
+                       "%d-%b-%Y": "31-Jan-2026", "%d %b %Y": "31 Jan 2026" };
+const key = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");  // "Project ID" matches project_id
 
 async function fetchBytes(path) {  // path is relative to the repository root
-  const r = await fetch(`../${path}`);
+  const r = await fetch(`../${path}`, { cache: "no-cache" });  // never run an old copy of the engine
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
   return new Uint8Array(await r.arrayBuffer());
 }
@@ -77,7 +96,9 @@ function show(result, savedTo) {
   $("reports").replaceChildren(...result.reports.map((r, i) => new Option(r.name, i)));
   $("reports").hidden = result.reports.length < 2;
   $("reports").onchange = e => { $("report").srcdoc = result.reports[e.target.value].html; };
-  $("report").srcdoc = result.reports[0]?.html ?? "<p style='font:15px system-ui;padding:16px'>No agencies in agencies.csv, so no report.</p>";
+  $("report").srcdoc = result.reports[0]?.html ?? "<p style='font:15px system-ui;padding:16px'>No agencies table, " +
+    "so no report. Add an agencies.csv with one row describing the agency.</p>";
+  view("report");
 }
 
 function fail(e) {
@@ -85,11 +106,101 @@ function fail(e) {
   status(e.message.trim().split("\n").pop(), true);  // a Python error's last line names the problem
 }
 
+function select(options, value) {  // options: [[value, label], ...]
+  const s = document.createElement("select");
+  s.replaceChildren(...options.map(([v, label]) => new Option(label, v)));
+  s.value = value;
+  return s;
+}
+
+function labelled(text, control) {
+  const l = document.createElement("label");
+  l.append(`${text} `, control);
+  return l;
+}
+
+// One table's matching form. Returns { box, build }, where build() gives its mapping.json entry.
+function tableForm(table, cols, saved, files, dates) {
+  const box = document.createElement("fieldset");
+  const legend = box.appendChild(document.createElement("legend"));
+  const ownName = `${table}.csv`;
+  const file = select([["", "(not supplied)"], ...Object.keys(files).map(f => [f, f])],
+                      saved.file === null ? "" : saved.file ?? (ownName in files ? ownName : ""));
+  const date = select(Object.entries({ ...DATE_FORMATS, ...(saved.date_format && { [saved.date_format]: saved.date_format }) }),
+                      saved.date_format ?? "");
+  const top = box.appendChild(document.createElement("div"));
+  top.className = "file-row";
+  top.append(labelled("File", file));
+  if (cols.some(c => dates.includes(c))) top.append(labelled("Dates look like", date));
+  const grid = box.appendChild(document.createElement("table"));
+  const lines = cols.map(c => {
+    const tr = grid.insertRow();
+    tr.insertCell().textContent = c;
+    const source = document.createElement("select");
+    const fixed = Object.assign(document.createElement("input"), { placeholder: "or a fixed value", value: saved.fixed?.[c] ?? "" });
+    tr.insertCell().append(source);
+    tr.insertCell().append(fixed);
+    return { c, tr, source, fixed };
+  });
+
+  const count = () => {
+    const matched = lines.filter(l => l.fixed.value.trim() || l.source.value);
+    for (const l of lines) l.tr.classList.toggle("unmatched", !matched.includes(l));
+    const hint = Object.assign(document.createElement("span"), { className: "hint",
+      textContent: file.value ? ` ${matched.length} of ${cols.length} fields matched` : " not supplied" });
+    legend.replaceChildren(table, hint);
+  };
+  const fill = () => {  // prefer the saved column, then a header with the same name
+    const heads = files[file.value] ?? [];
+    for (const l of lines) {
+      l.source.replaceChildren(new Option("—", ""), ...heads.map(h => new Option(h, h)));
+      l.source.value = [saved.columns?.[l.c], ...heads.filter(h => key(h) === key(l.c))].find(h => heads.includes(h)) ?? "";
+    }
+    grid.hidden = !file.value;
+    count();
+  };
+  file.onchange = fill;
+  box.oninput = count;
+  fill();
+
+  const build = () => {
+    const entry = {}, columns = {}, fixedValues = {};
+    if (file.value !== ownName) entry.file = file.value || null;
+    if (date.value) entry.date_format = date.value;
+    for (const l of lines) {
+      const v = l.fixed.value.trim();
+      if (v) fixedValues[l.c] = v;
+      else if (l.source.value && l.source.value !== l.c) columns[l.c] = l.source.value;
+    }
+    if (Object.keys(columns).length) entry.columns = columns;
+    if (Object.keys(fixedValues).length) entry.fixed = fixedValues;
+    return entry;
+  };
+  return { box, build };
+}
+
 try {
   const pyodide = await loadPyodide();
   const tables = await startEngine(pyodide, fetchBytes);
   status("Engine ready.");
   $("folder").disabled = $("sample").disabled = false;
+  let folder = null;  // { dir, info } for the open agency folder
+  let forms = [];
+
+  async function runFolder() {
+    status(`Auditing ${folder.dir.name}…`);
+    show(await auditFolder(pyodide, folder.dir, today()),
+         `saved to ${folder.dir.name}/normalized and ${folder.dir.name}/reports`);
+    status(`Audited ${folder.dir.name}.`);
+  }
+
+  function editMatching() {
+    const { files, mapping, schemas, dates } = folder.info;
+    forms = Object.entries(schemas).map(([t, cols]) => ({ t, ...tableForm(t, cols, mapping?.[t] ?? {}, files, dates) }));
+    $("tables").replaceChildren(...forms.map(f => f.box));
+    view("editor");
+    status(`Match ${folder.dir.name}'s files and columns, then save.`);
+  }
 
   $("folder").onclick = async () => {
     let dir;
@@ -100,13 +211,41 @@ try {
       return;
     }
     try {
-      status(`Auditing ${dir.name}…`);
-      show(await auditFolder(pyodide, dir, today()), `saved to ${dir.name}/normalized and ${dir.name}/reports`);
-      status(`Audited ${dir.name}.`);
+      const info = await inspectFolder(pyodide, dir);
+      if (!Object.keys(info.files).length)
+        throw new Error(`"${dir.name}" has no CSV files. Pick the folder that holds the agency's CSV files.`);
+      folder = { dir, info };
+      $("matching").hidden = false;
+      if (info.mapping || tables.every(t => `${t}.csv` in info.files)) await runFolder();
+      else editMatching();
     } catch (e) {
       fail(e);
     }
   };
+
+  $("matching").onclick = async () => {
+    try {
+      folder.info = await inspectFolder(pyodide, folder.dir);  // picks up files added since
+      editMatching();
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  $("save").onclick = async () => {
+    try {
+      const mapping = Object.fromEntries(forms.map(f => [f.t, f.build()]).filter(([, entry]) => Object.keys(entry).length));
+      const w = await (await folder.dir.getFileHandle("mapping.json", { create: true })).createWritable();
+      await w.write(JSON.stringify(mapping, null, 2) + "\n");
+      await w.close();
+      folder.info.mapping = mapping;
+      await runFolder();
+    } catch (e) {
+      fail(e);
+    }
+  };
+
+  $("cancel").onclick = () => { view("report"); status(folder ? `${folder.dir.name} not changed.` : ""); };
 
   $("sample").onclick = async () => {
     try {

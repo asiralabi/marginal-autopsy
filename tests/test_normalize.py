@@ -1,8 +1,10 @@
 import csv
+import json
 import shutil
 from pathlib import Path
 
-from src.normalize import TABLES, normalize
+from src.detect_variances import detect
+from src.normalize import TABLES, headers, normalize
 
 SYNTHETIC = Path(__file__).resolve().parents[1] / "data" / "synthetic"
 
@@ -82,3 +84,103 @@ def test_ambiguous_date_is_not_guessed(tmp_path):
     log = normalize(raw, tmp_path / "out")                    # no date format declared
     assert [e["note"][:16] for e in log] == ["unreadable date "]
     assert read(tmp_path / "out" / "time_entries.csv")[0]["date"] == ""
+
+
+def one_agency(agency_id):
+    """The synthetic tables cut down to one agency, as a real agency folder would be."""
+    rows = {t: read(SYNTHETIC / f"{t}.csv") for t in TABLES}
+    projects = {p["project_id"] for p in rows["projects"] if p["agency_id"] == agency_id}
+    return {t: [r for r in rs if r.get("agency_id", agency_id) == agency_id and r.get("project_id", "") in projects | {""}]
+            for t, rs in rows.items()}
+
+
+def thousands(v):  # "12000.0" -> "12,000.0", the way spreadsheets export amounts
+    whole, dot, frac = v.partition(".")
+    return f"{int(whole):,}{dot}{frac}" if whole.isdigit() else v
+
+
+def export(rows, renames, date_column=None, date_format=None, numbers=(), drop=(), extra=None):
+    """Rewrite schema rows the way an agency's tool would export them."""
+    out = []
+    for r in rows:
+        r = dict(r)
+        if date_column and r[date_column]:
+            y, m, d = r[date_column].split("-")
+            r[date_column] = date_format.replace("%Y", y).replace("%m", m).replace("%d", d)
+        for c in numbers:
+            r[c] = thousands(r[c])
+        if "currency" in r:
+            r["currency"] = r["currency"].lower()
+        r = {renames.get(c, c): v for c, v in reversed(r.items()) if c not in drop}  # reordered columns
+        out.append(r | (extra or {}))
+    return out
+
+
+def test_agency_export_with_mapping_matches_clean_data(tmp_path):
+    rows = one_agency("AG01")
+    clean, messy = tmp_path / "clean", tmp_path / "messy"
+    clean.mkdir(), messy.mkdir()
+    for t, rs in rows.items():
+        write(clean / f"{t}.csv", rs, list(rs[0]))
+    for t in ["agencies", "scope_items", "evidence_documents"]:         # already in schema form
+        shutil.copy(clean / f"{t}.csv", messy)
+
+    projects = {"project_id": "Project Code", "start_date": "Start", "end_date": "End", "contract_value": "Contract Value"}
+    pr = export(rows["projects"], projects, numbers=["contract_value"], drop=["agency_id"])
+    time = {"entry_id": "Entry", "project_id": "Project", "date": "Date", "hours": "Duration (h)", "hourly_cost_rate": "Rate"}
+    te = export(rows["time_entries"], time, "date", "%m/%d/%Y", extra={"Billable": "Yes"})
+    money = {"transaction_id": "Ref", "project_id": "Project", "transaction_date": "Date", "amount": "Amount"}
+    tx = export(rows["financial_transactions"], money, "transaction_date", "%d/%m/%Y", numbers=["amount"])
+    write(messy / "Project list.csv", pr, list(pr[0]))
+    write(messy / "Clockify report.csv", te, list(te[0]))
+    write(messy / "Invoices.csv", tx, list(tx[0]))
+    (messy / "mapping.json").write_text(json.dumps({
+        "projects": {"file": "Project list.csv", "columns": projects, "fixed": {"agency_id": "AG01"}},
+        "time_entries": {"file": "Clockify report.csv", "columns": time, "date_format": "%m/%d/%Y"},
+        "financial_transactions": {"file": "Invoices.csv", "columns": money, "date_format": "%d/%m/%Y"},
+    }), encoding="utf-8")
+
+    assert normalize(clean, tmp_path / "clean_out") == []
+    log = normalize(messy, tmp_path / "messy_out")
+    for t in TABLES:
+        assert (tmp_path / "messy_out" / f"{t}.csv").read_bytes() == (tmp_path / "clean_out" / f"{t}.csv").read_bytes(), t
+    findings = detect(tmp_path / "clean_out")
+    assert findings and detect(tmp_path / "messy_out") == findings
+
+    assert not [e for e in log if e["level"] != "info"]
+    assert {
+        ("projects", "", "Project list.csv", "read from this file"),
+        ("projects", "agency_id", "", "fixed value for every row"),
+        ("time_entries", "hours", "Duration (h)", "read from this column"),
+        ("time_entries", "Billable", "", "column not in schema; dropped"),
+    } <= {(e["table"], e["column"], e["original"], e["note"]) for e in log}
+    assert headers(messy)["Clockify report.csv"][0] == "entry_confidence"  # columns came out reversed
+
+
+def test_mapping_mistakes_are_logged(tmp_path):
+    raw = tmp_path / "raw"
+    shutil.copytree(SYNTHETIC, raw)
+    (raw / "mapping.json").write_text(json.dumps({
+        "timesheets": {},                                                  # not a table
+        "time_entries": {"columns": {"hrs": "Hours", "hours": "Duration"}},  # not a column; header absent
+        "financial_transactions": {"file": "nope.csv"},                    # file absent
+        "scope_items": {"file": None},                                     # not supplied
+    }), encoding="utf-8")
+    issues = {(e["level"], e["table"], e["column"], e["original"], e["note"]) for e in normalize(raw, tmp_path / "out")}
+    assert {
+        ("error", "timesheets", "", "", "mapping.json names a table not in the schema"),
+        ("error", "time_entries", "hrs", "", "mapping.json names a column not in the schema"),
+        ("error", "time_entries", "hours", "Duration", "column missing from source"),
+        ("warning", "financial_transactions", "", "nope.csv", "table not supplied"),
+        ("warning", "scope_items", "", "", "table not supplied"),
+    } <= issues
+
+
+def test_table_not_supplied_is_written_empty_so_a_rerun_never_reads_old_output(tmp_path):
+    raw, out = tmp_path / "raw", tmp_path / "out"
+    shutil.copytree(SYNTHETIC, raw)
+    normalize(raw, out)                                       # first run writes scope_items.csv
+    (raw / "scope_items.csv").unlink()
+    normalize(raw, out)
+    assert read(out / "scope_items.csv") == []
+    detect(out)                                               # the rest of the pipeline still runs
