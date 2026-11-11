@@ -5,29 +5,50 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Margin Autopsy analyst tool</title>
 <style>
-  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: #1f2328; background: #f6f7f9; }
+  body { display: flex; flex-direction: column; height: 100vh; margin: 0; font: 15px/1.5 system-ui, sans-serif;
+         color: #1f2328; background: #f6f7f9; }
   header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px;
            background: #fff; border-bottom: 1px solid #d8dde3; }
   h1 { margin: 0 8px 0 0; font-size: 16px; }
   #status { color: #57606a; }
   #status.error { color: #b42318; }
-  iframe { display: block; width: 100%; height: calc(100vh - 60px); border: 0; background: #fff; }
+  #summary { padding: 8px 16px; background: #fff; border-bottom: 1px solid #d8dde3; }
+  #summary table { border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+  #summary th, #summary td { padding: 2px 10px 2px 0; text-align: left; vertical-align: top; }
+  .error-row { color: #b42318; }
+  #problems-wrap { max-height: 35vh; overflow: auto; }
+  iframe { flex: 1; width: 100%; border: 0; background: #fff; }
 </style>
 </head>
 <body>
 <header>
   <h1>Margin Autopsy · analyst tool</h1>
+  <button id="folder" disabled>Open agency folder…</button>
   <button id="sample" disabled>Run on sample data</button>
   <select id="reports" hidden aria-label="Report"></select>
   <span id="status">Loading engine…</span>
 </header>
+<div id="summary" hidden>
+  <span id="counts"></span>
+  <details id="problems-box">
+    <summary id="problems-title"></summary>
+    <div id="problems-wrap">
+      <table>
+        <thead><tr><th>Level</th><th>Table</th><th>Line</th><th>Record</th><th>Column</th><th>Value</th><th>Problem</th></tr></thead>
+        <tbody id="problems"></tbody>
+      </table>
+    </div>
+  </details>
+</div>
 <iframe id="report" title="Audit report"></iframe>
 <script type="module">
 import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs";
-import { startEngine, runAudit } from "./engine.js";
+import { startEngine, runAudit, auditFolder } from "./engine.js";
 
 const $ = id => document.getElementById(id);
 const status = (text, error = false) => { $("status").textContent = text; $("status").className = error ? "error" : ""; };
+const today = () => new Date().toLocaleDateString("en-CA");  // YYYY-MM-DD, local time
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 async function fetchBytes(path) {  // path is relative to the repository root
   const r = await fetch(`../${path}`);
@@ -35,28 +56,67 @@ async function fetchBytes(path) {  // path is relative to the repository root
   return new Uint8Array(await r.arrayBuffer());
 }
 
+function show(result, savedTo) {
+  const errors = result.problems.filter(p => p.level === "error").length;
+  $("counts").textContent = [
+    `${plural(result.projects, "project")} (${result.excluded} excluded, ${result.incomplete} with incomplete data)`,
+    plural(result.findings, "finding"),
+    `${plural(errors, "error")}, ${plural(result.problems.length - errors, "warning")}, ${plural(result.changes, "change")}`,
+    savedTo,
+  ].join(" · ");
+  $("problems-title").textContent = result.problems.length ? `Data problems (${result.problems.length})` : "No data problems";
+  $("problems").replaceChildren(...result.problems.map(p => {
+    const tr = document.createElement("tr");
+    if (p.level === "error") tr.className = "error-row";
+    for (const k of ["level", "table", "line", "record_id", "column", "original", "note"]) tr.insertCell().textContent = p[k];
+    return tr;
+  }));
+  $("problems-box").open = errors > 0;
+  $("summary").hidden = false;
+
+  $("reports").replaceChildren(...result.reports.map((r, i) => new Option(r.name, i)));
+  $("reports").hidden = result.reports.length < 2;
+  $("reports").onchange = e => { $("report").srcdoc = result.reports[e.target.value].html; };
+  $("report").srcdoc = result.reports[0]?.html ?? "<p style='font:15px system-ui;padding:16px'>No agencies in agencies.csv, so no report.</p>";
+}
+
+function fail(e) {
+  console.error(e);
+  status(e.message.trim().split("\n").pop(), true);  // a Python error's last line names the problem
+}
+
 try {
   const pyodide = await loadPyodide();
   const tables = await startEngine(pyodide, fetchBytes);
   status("Engine ready.");
-  $("sample").disabled = false;
+  $("folder").disabled = $("sample").disabled = false;
 
-  const show = path => { $("report").srcdoc = pyodide.FS.readFile(path, { encoding: "utf8" }); };
-  $("reports").onchange = e => show(e.target.value);
+  $("folder").onclick = async () => {
+    let dir;
+    try {
+      dir = await window.showDirectoryPicker({ id: "agency", mode: "readwrite" });
+    } catch (e) {
+      if (e.name !== "AbortError") fail(e);
+      return;
+    }
+    try {
+      status(`Auditing ${dir.name}…`);
+      show(await auditFolder(pyodide, dir, today()), `saved to ${dir.name}/normalized and ${dir.name}/reports`);
+      status(`Audited ${dir.name}.`);
+    } catch (e) {
+      fail(e);
+    }
+  };
 
   $("sample").onclick = async () => {
     try {
       const raw = "/work/sample/raw";
       pyodide.FS.mkdirTree(raw);
       for (const t of tables) pyodide.FS.writeFile(`${raw}/${t}.csv`, await fetchBytes(`data/synthetic/${t}.csv`));
-      const today = new Date().toLocaleDateString("en-CA");  // YYYY-MM-DD, local time
-      const reports = runAudit(pyodide, raw, "/work/sample/normalized", "/work/sample/reports", today);
-      $("reports").replaceChildren(...reports.map(p => new Option(p.split("/").pop(), p)));
-      $("reports").hidden = false;
-      show(reports[0]);
-      status(`${reports.length} reports from sample data.`);
+      show(runAudit(pyodide, raw, "/work/sample/normalized", "/work/sample/reports", today()), "sample data, not saved");
+      status("Ran on sample data.");
     } catch (e) {
-      status(e.message, true);
+      fail(e);
     }
   };
 } catch (e) {

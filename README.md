@@ -28,7 +28,9 @@ python -m src.generate_report data/normalized/AG01 reports/AG01
 
 Analyst tool (browser): `python -m http.server 8765 --bind 127.0.0.1`, then open
 http://127.0.0.1:8765/app/. It runs the same `src/` code unchanged inside Pyodide,
-so files are processed in the browser, not by the server.
+so files are processed in the browser, not by the server. **Open agency folder…**
+(Chrome or Edge) takes the folder holding the agency's CSVs and writes
+`normalized/` and `reports/` inside it. Keep agency folders outside this repository.
 
 `normalize` writes the cleaned tables plus `normalization_log.csv` (every changed
 value and every problem). Raw files are never modified.
