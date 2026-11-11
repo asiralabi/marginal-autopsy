@@ -7,7 +7,11 @@ and the method. Amounts stay in their original currency and impact types are
 never added together. Findings are ordered by confidence, then by impact in
 USD (used for ordering only).
 
-Usage: python -m src.generate_report NORMALIZED_DIR OUT_DIR
+With the review's verdicts (src/review.py), findings the analyst dropped are left
+out, each answered finding shows the agency's verdict instead of an empty box, and
+the summary adds what the agency confirmed.
+
+Usage: python -m src.generate_report NORMALIZED_DIR OUT_DIR [--verdicts AGENCY_DIR]
 """
 import argparse
 import html
@@ -18,6 +22,7 @@ from pathlib import Path
 
 from src.detect_variances import detect, load_rules
 from src.reconcile import read
+from src.review import confirmed_totals, load, reviewed
 
 IMPACT_TYPES = {  # protocol §4 order and plain-language meaning
     "confirmed_discrepancy": "Confirmed discrepancy: the records disagree by this amount.",
@@ -27,6 +32,8 @@ IMPACT_TYPES = {  # protocol §4 order and plain-language meaning
     "unquantified_process_issue": "Process issue: a control gap with no amount attached.",
     "realized_recovery": "Realized recovery: money actually recovered after the audit.",
 }
+VERDICTS = {"confirmed": "Confirmed", "partially_confirmed": "Partly confirmed", "rejected": "Rejected",
+            "needs_more_evidence": "Needs more evidence"}
 CONFIDENCE_ORDER = {"high": 0, "medium": 1, "low": 2}
 TABLES = {"time_entries": "entry_id", "financial_transactions": "transaction_id", "scope_items": "scope_item_id"}
 e = html.escape
@@ -86,7 +93,7 @@ def amount(value, currency, missing="Not calculated"):
 
 
 def summary_rows(findings):
-    rows = []
+    rows, confirmed = [], confirmed_totals(findings)
     for kind, meaning in IMPACT_TYPES.items():
         group = [f for f in findings if f["impact_type"] == kind]
         if not group:
@@ -98,9 +105,42 @@ def summary_rows(findings):
         money = "; ".join(f"{c} {v:,.2f}" for c, v in sorted(totals.items())) or "No amount"
         unpriced = sum(1 for f in group if not f["estimated_impact"])
         note = f" (plus {unpriced} without an amount)" if unpriced and totals else ""
+        agreed = sum(1 for f in group if f["customer_verdict"] in ("confirmed", "partially_confirmed"))
+        amounts = "; ".join(f"{c} {v:,.2f}" for c, v in sorted(confirmed.get(kind, {}).items()))
         rows.append(f"<tr><td>{e(meaning.split(':')[0])}</td><td class=num>{len(group)}</td>"
-                    f"<td class=num>{e(money)}{note}</td></tr>")
+                    f"<td class=num>{e(money)}{note}</td>"
+                    f"<td class=num>{agreed} of {len(group)}{e(' · ' + amounts) if amounts else ''}</td></tr>")
     return "".join(rows)
+
+
+def banner(findings):
+    answered = sum(1 for f in findings if f["customer_verdict"] != "unreviewed")
+    if findings and answered == len(findings):
+        return ("<p class=draft><strong>Reviewed with you.</strong> Every finding below shows your verdict. "
+                "Only confirmed amounts count, partly confirmed ones only at the amount you agreed. Amounts stay "
+                "in their original currency, and different kinds of impact are never added together.</p>")
+    progress = f" {answered} of {len(findings)} findings reviewed so far." if answered else ""
+    return ("<p class=draft><strong>Draft for your review.</strong> Every finding below is a candidate, not a conclusion.\n"
+            "  Please confirm or reject each one; only confirmed findings count. Amounts stay in their original currency,\n"
+            f"  and different kinds of impact are never added together.{progress}</p>")
+
+
+def verdict(f):
+    """The agency's recorded answer, or an empty box to fill in during the review call."""
+    if f["customer_verdict"] == "unreviewed":
+        return ("<span class=opt>&#9744; Confirmed</span><span class=opt>&#9744; Partly confirmed</span>\n"
+                "      <span class=opt>&#9744; Rejected</span><span class=opt>&#9744; Needs more evidence</span><br>\n"
+                "      Already known to you? <span class=opt>&#9744; Yes</span><span class=opt>&#9744; No</span><br>Notes:")
+    parts = [f"<strong>{e(VERDICTS.get(f['customer_verdict'], f['customer_verdict']))}</strong>"]
+    if f["agreed_amount"]:
+        parts.append(f"agreed amount {e(amount(f['agreed_amount'], f['currency']))}")
+    parts += [f"{label}: {e(f[k])}" for k, label in [("already_known", "already known"), ("actionability", "next step agreed")] if f[k]]
+    out = " · ".join(parts)
+    if f["agency_comment"]:
+        out += f"<br>{e(f['agency_comment'])}"
+    if f["reviewed_on"]:
+        out += f"<br><span class=muted>Recorded {e(f['reviewed_on'])}{' with ' + e(f['reviewer_id']) if f['reviewer_id'] else ''}</span>"
+    return out
 
 
 def project_rows(baseline, projects):
@@ -141,9 +181,7 @@ def finding_block(n, f, project, rules, index):
     <dt>Possible innocent explanation</dt><dd>{e(f['alternative_explanation'])}</dd>
     <dt>Confidence</dt><dd>{e(f['confidence'].capitalize())}</dd>
     <dt>Suggested next action</dt><dd>{e(f['next_action'])}</dd>
-    <dt>Your verdict</dt><dd class=verdict><span class=opt>&#9744; Confirmed</span><span class=opt>&#9744; Partly confirmed</span>
-      <span class=opt>&#9744; Rejected</span><span class=opt>&#9744; Needs more evidence</span><br>
-      Already known to you? <span class=opt>&#9744; Yes</span><span class=opt>&#9744; No</span><br>Notes:</dd>
+    <dt>Your verdict</dt><dd class=verdict>{verdict(f)}</dd>
   </dl>
   <p class=meta>{e(f['finding_id'])} · rule {e(f['finding_type'])} v{e(str(f['rule_version']))}</p>
 </article>"""
@@ -219,13 +257,12 @@ dd ul {{ margin:0; padding-left:18px }}
   <p class=muted>{e(agency['region'])} · {e(agency['billing_model'])} · {included} projects audited,
     {len(baseline) - included} excluded</p>
 </header>
-<p class=draft><strong>Draft for your review.</strong> Every finding below is a candidate, not a conclusion.
-  Please confirm or reject each one; only confirmed findings count. Amounts stay in their original currency,
-  and different kinds of impact are never added together.</p>
+{banner(findings)}
 
 <section><h2>Summary</h2>
-  <div class=wide><table><thead><tr><th>Kind of impact</th><th class=num>Findings</th><th class=num>Total by currency</th></tr></thead>
-  <tbody>{summary_rows(findings) or '<tr><td colspan=3>No findings.</td></tr>'}</tbody></table></div>
+  <div class=wide><table><thead><tr><th>Kind of impact</th><th class=num>Findings</th><th class=num>Total by currency</th>
+  <th class=num>Confirmed by you</th></tr></thead>
+  <tbody>{summary_rows(findings) or '<tr><td colspan=4>No findings.</td></tr>'}</tbody></table></div>
 </section>
 
 <section><h2>Planned vs actual profit</h2>
@@ -256,11 +293,13 @@ dd ul {{ margin:0; padding-left:18px }}
 """
 
 
-def generate(folder, out_dir, generated_on=None):
+def generate(folder, out_dir, generated_on=None, verdicts=None):
+    """verdicts: rows from review.load(); findings the analyst dropped are left out."""
     folder, out_dir = Path(folder), Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     generated_on = generated_on or date.today().isoformat()
-    findings, rules = detect(folder), load_rules()
+    findings = [f for f in reviewed(detect(folder), verdicts or {}) if f["analyst_decision"] != "drop"]
+    rules = load_rules()
     baseline, projects = read(folder, "baseline"), {p["project_id"]: p for p in read(folder, "projects")}
     log = read(folder, "normalization_log") if (folder / "normalization_log.csv").exists() else []
     index, rates, written = evidence_index(folder), usd_rates(folder), []
@@ -280,6 +319,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Write one draft audit report per agency.")
     p.add_argument("normalized_dir")
     p.add_argument("out_dir")
+    p.add_argument("--verdicts", help="the agency folder holding verdicts.csv")
     a = p.parse_args()
-    for path in generate(a.normalized_dir, a.out_dir):
+    for path in generate(a.normalized_dir, a.out_dir, verdicts=load(a.verdicts) if a.verdicts else None):
         print(path)

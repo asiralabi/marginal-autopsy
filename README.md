@@ -33,6 +33,10 @@ so files are processed in the browser, not by the server. **Open agency folder�
 When the files are not in the schema's form, **Column matching…** saves a
 `mapping.json` in the folder (file, columns, fixed values and date format per
 table; format in `src/normalize.py`), which `normalize` then applies on every run.
+**Review findings…** records the analyst's keep/drop and the agency's verdicts in
+`verdicts.csv` in the same folder (`src/review.py`). Reports then leave dropped
+findings out, show each recorded verdict, and add a "Confirmed by you" column;
+the CLI gets the same with `generate_report ... --verdicts AGENCY_DIR`.
 
 `normalize` writes the cleaned tables plus `normalization_log.csv` (every changed
 value and every problem). Raw files are never modified.

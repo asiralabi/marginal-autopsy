@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Margin Autopsy analyst tool</title>
+<link rel="icon" href="data:,">  <!-- no tab icon, so the browser does not request /favicon.ico -->
+
 <style>
   body { display: flex; flex-direction: column; height: 100vh; margin: 0; font: 15px/1.5 system-ui, sans-serif;
          color: #1f2328; background: #f6f7f9; }
@@ -43,6 +45,7 @@
   <button id="review-btn" hidden>Review findings…</button>
   <button id="sample" disabled>Run on sample data</button>
   <select id="reports" hidden aria-label="Report"></select>
+  <button id="print" hidden>Print report…</button>
   <span id="status">Loading engine…</span>
 </header>
 <div id="summary" hidden>
@@ -120,6 +123,7 @@ function show(result, savedTo) {
   $("reports").onchange = e => { $("report").srcdoc = result.reports[e.target.value].html; };
   $("report").srcdoc = result.reports[0]?.html ?? "<p style='font:15px system-ui;padding:16px'>No agencies table, " +
     "so no report. Add an agencies.csv with one row describing the agency.</p>";
+  $("print").hidden = !result.reports.length;
   view("report");
 }
 
@@ -334,7 +338,14 @@ try {
     }
   };
   $("review-list").oninput = () => status("Unsaved changes.");
-  $("review-back").onclick = () => view("report");
+  $("review-back").onclick = async () => {  // rebuild the report so it shows the saved verdicts
+    try {
+      await runFolder();
+    } catch (e) {
+      fail(e);
+    }
+  };
+  $("print").onclick = () => $("report").contentWindow.print();  // save as PDF from the print dialog
 
   $("sample").onclick = async () => {
     try {

@@ -22,17 +22,19 @@ export async function startEngine(pyodide, readBytes) {
 }
 
 // The README's command sequence: normalize, then generate_report (which runs
-// reconcile and the rules, writing baseline.csv and findings.csv). Returns the
+// reconcile and the rules, writing baseline.csv and findings.csv), with the
+// verdicts.csv beside the source files if there is one. Returns the
 // reports ({name, html}) and the counts the CLI prints after each step.
 export function runAudit(pyodide, rawDir, normalizedDir, reportDir, generatedOn) {
   const run = pyodide.runPython(`
 from src.normalize import normalize
 from src.generate_report import generate
 from src.reconcile import read
+from src.review import load
 
 def run(raw, normalized, reports, generated_on):
     log = normalize(raw, normalized)
-    paths = [str(p) for p in generate(normalized, reports, generated_on)]
+    paths = [str(p) for p in generate(normalized, reports, generated_on, load(raw))]
     baseline = read(normalized, "baseline")
     return dict(reports=paths, problems=[e for e in log if e["level"] != "info"],
                 changes=sum(e["level"] == "info" for e in log), projects=len(baseline),
