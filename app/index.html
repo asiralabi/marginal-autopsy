@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Margin Autopsy analyst tool</title>
+<style>
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: #1f2328; background: #f6f7f9; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px;
+           background: #fff; border-bottom: 1px solid #d8dde3; }
+  h1 { margin: 0 8px 0 0; font-size: 16px; }
+  #status { color: #57606a; }
+  #status.error { color: #b42318; }
+  iframe { display: block; width: 100%; height: calc(100vh - 60px); border: 0; background: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Margin Autopsy · analyst tool</h1>
+  <button id="sample" disabled>Run on sample data</button>
+  <select id="reports" hidden aria-label="Report"></select>
+  <span id="status">Loading engine…</span>
+</header>
+<iframe id="report" title="Audit report"></iframe>
+<script type="module">
+import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.mjs";
+import { startEngine, runAudit } from "./engine.js";
+
+const $ = id => document.getElementById(id);
+const status = (text, error = false) => { $("status").textContent = text; $("status").className = error ? "error" : ""; };
+
+async function fetchBytes(path) {  // path is relative to the repository root
+  const r = await fetch(`../${path}`);
+  if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+try {
+  const pyodide = await loadPyodide();
+  const tables = await startEngine(pyodide, fetchBytes);
+  status("Engine ready.");
+  $("sample").disabled = false;
+
+  const show = path => { $("report").srcdoc = pyodide.FS.readFile(path, { encoding: "utf8" }); };
+  $("reports").onchange = e => show(e.target.value);
+
+  $("sample").onclick = async () => {
+    try {
+      const raw = "/work/sample/raw";
+      pyodide.FS.mkdirTree(raw);
+      for (const t of tables) pyodide.FS.writeFile(`${raw}/${t}.csv`, await fetchBytes(`data/synthetic/${t}.csv`));
+      const today = new Date().toLocaleDateString("en-CA");  // YYYY-MM-DD, local time
+      const reports = runAudit(pyodide, raw, "/work/sample/normalized", "/work/sample/reports", today);
+      $("reports").replaceChildren(...reports.map(p => new Option(p.split("/").pop(), p)));
+      $("reports").hidden = false;
+      show(reports[0]);
+      status(`${reports.length} reports from sample data.`);
+    } catch (e) {
+      status(e.message, true);
+    }
+  };
+} catch (e) {
+  status(`Engine failed to load: ${e.message}`, true);
+}
+</script>
+</body>
+</html>
