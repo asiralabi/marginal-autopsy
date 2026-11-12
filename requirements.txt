@@ -1,1 +1,2 @@
 pytest
+psycopg2-binary  # only for src/store.py, the audit store
